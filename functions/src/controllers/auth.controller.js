@@ -23,6 +23,9 @@ async function sendMail(mailOptions) {
   try {
     const accessToken = await oAuth2Client.getAccessToken();
     const transport = nodemailer.createTransport({
+      tls: {
+        rejectUnauthorized: false,
+      },
       service: "gmail",
       auth: {
         type: "OAuth2",
