@@ -1,13 +1,15 @@
+const functions = require("firebase-functions");
+
 const express = require("express");
 const morgan = require("morgan");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const connectDB = require("./config/db");
+const connectDB = require("./src/config/db");
 const app = express();
 
 // Config .env to ./config/config.env
 require("dotenv").config({
-  path: "./config/config.env",
+  path: "./src/config/config.env",
 });
 
 // Connect to Database
@@ -34,11 +36,11 @@ app.use(morgan("dev"));
 
 // Load all routes
 
-const authRouter = require("./routes/auth.route");
-const userRouter = require("./routes/user.route");
-const nominationRouter = require("./routes/nomination.route");
-const electionRouter = require("./routes/election.route");
-const activeRouter = require("./routes/active.route");
+const authRouter = require("./src/routes/auth.route");
+const userRouter = require("./src/routes/user.route");
+const nominationRouter = require("./src/routes/nomination.route");
+const electionRouter = require("./src/routes/election.route");
+const activeRouter = require("./src/routes/active.route");
 
 // Use routes
 
@@ -57,6 +59,16 @@ app.use((req, res, next) => {
 
 const PORT = process.env.PORT;
 
-app.listen(PORT, () => {
-  console.log(`App listening on port ${PORT}!`);
-});
+// app.listen(PORT, () => {
+//   console.log(`App listening on port ${PORT}!`);
+// });
+
+exports.app = functions.https.onRequest(app);
+
+// // Create and deploy your first functions
+// // https://firebase.google.com/docs/functions/get-started
+//
+// exports.helloWorld = functions.https.onRequest((request, response) => {
+//   functions.logger.info("Hello logs!", {structuredData: true});
+//   response.send("Hello from Firebase!");
+// });
