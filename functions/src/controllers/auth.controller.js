@@ -1,4 +1,4 @@
-const User = require("../models/auth.model");
+const { User, PendingUser } = require("../models/auth.model");
 const expressJwt = require("express-jwt");
 const _ = require("lodash");
 // const fetch = require("node-fetch");
@@ -19,7 +19,7 @@ const oAuth2Client = new google.auth.OAuth2(
 oAuth2Client.setCredentials({ refresh_token: process.env.AUTH_REFRESH_TOKEN });
 
 // Nodemailer send function
-async function sendMail(mailOptions) {
+async function sendMail(mailOptions, user) {
   try {
     const accessToken = await oAuth2Client.getAccessToken();
     const transport = nodemailer.createTransport({
@@ -38,7 +38,24 @@ async function sendMail(mailOptions) {
     });
 
     const result = await transport.sendMail(mailOptions);
-    return result;
+
+    const pendingUser = new PendingUser({
+      first_name: user.first_name,
+      last_name: user.last_name,
+      student_number: user.student_number,
+      pref_first_name: user.pref_first_name
+        ? user.pref_first_name
+        : user.first_name,
+      activationToken: user.token,
+    });
+
+    // log recent registration
+    return pendingUser.save((err, pendingUser) => {
+      if (err) {
+        return err;
+      }
+      return result;
+    });
   } catch (error) {
     return error;
   }
@@ -57,116 +74,92 @@ exports.registerController = (req, res) => {
       error: firstError,
     });
   } else {
-    User.findOne({
-      student_number,
-    }).exec(async (err, user) => {
-      // If user is already registered
-
+    // Check if user account exists
+    return User.findOne({ student_number }, (err, user) => {
       if (err) {
         return res
           .status(400)
           .json({ success: false, error: err.message.data });
-      }
-      if (user) {
-        return await res.status(400).json({
+      } else if (user) {
+        return res.status(400).json({
           success: false,
           error: "Account already exists.",
         });
-      }
-      // If user isn't already registered
-      else {
-        // Generate Token
-        const token = jwt.sign(
-          {
-            first_name,
-            last_name,
-            student_number,
-            pref_first_name,
-            password,
-          },
-          process.env.JWT_ACCOUNT_ACTIVATION,
-          {
-            expiresIn: "1440m",
-          }
-        );
-
-        const mailOptions = {
-          from: `IADT SU <${process.env.EMAIL_FROM}>`,
-          to: `${student_number}@iadt.ie`,
-          subject: `IADTSU Elections Account Activation Link`,
-          text: `Hello, Thank you for registering to vote in IADTSU Elections. Go to the following link to complete your registration: ${process.env.CLIENT_URL}/users/activate/${token}. This activation link will expire in 15 minutes. Please fill out the registration form again if you miss this timeframe.`,
-          html: `
-          <html>
-          <body>
-          <p>Hello ${first_name},</p>
-          <p>Thank you for registering to vote in IADTSU Elections. Go to the following link to complete your registration:</p>
-          <hr/>
-          <p>${process.env.CLIENT_URL}/users/activate/${token}</p>
-          <hr/>
-          <p>This activation link will expire in 24h. Please fill out the registration form again if you miss this timeframe.</p>
-          <p>This email contains sensitive information.</p>
-          <p>${process.env.CLIENT_URL}</p>
-          </body>
-          </html>
-            `,
-        };
-
-        sendMail(mailOptions)
-          .then((result) => {
-            console.log("Email sent...", result);
-            return res.json({
-              success: true,
-              message: `Email has been sent to ${student_number}@iadt.ie`,
-            });
-          })
-          .catch((error) => {
-            console.log(error.message);
+      } else {
+        // Check if user recently tried to register
+        PendingUser.findOne({ student_number }, (err, pendingUser) => {
+          if (err) {
             return res
               .status(400)
-              .json({ success: false, error: error.message });
-          });
+              .json({ success: false, error: err.message.data });
+          } else if (pendingUser) {
+            return res.status(400).json({
+              success: false,
+              error:
+                "You have already registered recently. Check your student email for an activation link or contact email provided.",
+            });
+          }
+          // If user account doesn't exist and no registration in the last 24h
+          else {
+            // Generate Token
+            const token = jwt.sign(
+              {
+                first_name,
+                last_name,
+                student_number,
+                pref_first_name,
+                password,
+              },
+              process.env.JWT_ACCOUNT_ACTIVATION,
+              {
+                expiresIn: "1440m",
+              }
+            );
+
+            const mailOptions = {
+              from: `IADT SU <${process.env.EMAIL_FROM}>`,
+              to: `${student_number}@iadt.ie`,
+              subject: `IADTSU Elections Account Activation Link`,
+              text: `Hello ${pref_first_name}, Thank you for registering to vote in IADTSU Elections. Go to the following link to complete your registration: ${process.env.CLIENT_URL}/users/activate/${token}. This activation link will expire in 24 hours. Please fill out the registration form again if you miss this timeframe. Do not respond to this email if you require support. For all technical queries, email help.iadtsu@gmail.com. If you did not register for an account, please ignore this email.`,
+              html: `<html>
+                <body>
+                <p>Hello ${pref_first_name},</p>
+                <p>Thank you for registering to vote in IADTSU Elections. Go to the following link to complete your registration:</p>
+                <hr/>
+                <p>${process.env.CLIENT_URL}/users/activate/${token}</p>
+                <hr/>
+                <p>This activation link will expire in 24h. Please fill out the registration form again if you miss this timeframe.</p>
+                <p>Do not respond to this email if you require support. For all technical queries, email help.iadtsu@gmail.com.</p>
+                <p>This email contains sensitive information. If you did not register for an account, please ignore this email.</p>
+                <p>${process.env.CLIENT_URL}</p>
+                </body>
+                </html>`,
+            };
+
+            sendMail(mailOptions, {
+              first_name,
+              last_name,
+              student_number,
+              pref_first_name,
+              token,
+            })
+              .then((result) => {
+                console.log("Email sent...", result);
+                return res.json({
+                  success: true,
+                  message: `Email has been sent to ${student_number}@iadt.ie`,
+                });
+              })
+              .catch((error) => {
+                console.log(error.message);
+                return res
+                  .status(400)
+                  .json({ success: false, error: error.message });
+              });
+          }
+        });
       }
     });
-
-    // let transporter = nodemailer.createTransport({
-    //   service: "gmail",
-    //   auth: {
-    //     user: process.env.EMAIL_FROM,
-    //     pass: process.env.EMAIL_PW,
-    //   },
-    //   tls: {
-    //     rejectUnauthorized: false,
-    //   },
-    // });
-
-    // const emailData = {
-    //   from: "IADTSU",
-    //   to: `${student_number}@iadt.ie`,
-    //   subject: "Account Activation Link",
-    //   text: `Go to the following link to activate your account: ${process.env.CLIENT_URL}/users/activate/${token}`,
-    //   // html: `
-    //   // <html>
-    //   // <body>
-    //   // <h1>Go to the following link to activate your account:</h1>
-    //   // <p>${process.env.CLIENT_URL}/users/activate/${token}</p>
-    //   // <hr/>
-    //   // <p>This email contains sensitive information.</p>
-    //   // <p>${process.env.CLIENT_URL}</p>
-    //   // </body>
-    //   // </html>
-    //   // `,
-    // };
-
-    // transporter.sendMail(emailData, function (err, data) {
-    //   if (err) {
-    //     return res.status(400).json({ success: false, error: err });
-    //   } else {
-    //     return res.json({
-    //       success: true,
-    //       message: `Email has been sent to ${student_number}@iadt.ie`,
-    //     });
-    //   }
-    // });
   }
 };
 
@@ -201,17 +194,29 @@ exports.activationController = (req, res) => {
           password,
         });
 
-        user.save((err, user) => {
+        user.save(async (err, user) => {
           if (err) {
             return res.status(400).json({
               success: false,
               error: errorHandler(err),
             });
           } else {
-            return res.json({
-              success: true,
-              message: "Signup successful",
-            });
+            return await PendingUser.findOneAndDelete({ student_number }).exec(
+              async (err) => {
+                if (err) {
+                  return res.status(400).json({
+                    error:
+                      "Could not find the user or activation link expired.",
+                    success: false,
+                  });
+                } else {
+                  return res.json({
+                    success: true,
+                    message: "Signup successful",
+                  });
+                }
+              }
+            );
           }
         });
       }

@@ -42,7 +42,7 @@ const userSchema = new mongoose.Schema(
       default: "",
     },
   },
-  { timeStamp: true }
+  { timestamps: true }
 );
 
 // Virtual Password
@@ -82,4 +82,41 @@ userSchema.methods = {
   },
 };
 
-module.exports = mongoose.model("User", userSchema);
+const pendingUserSchema = new mongoose.Schema(
+  {
+    student_number: {
+      type: String,
+      trim: true,
+      required: true,
+      unique: true,
+      lowercase: true,
+    },
+    first_name: {
+      type: String,
+      trim: true,
+      required: true,
+    },
+    last_name: {
+      type: String,
+      trim: true,
+      required: true,
+    },
+    pref_first_name: {
+      type: String,
+      trim: true,
+      required: true,
+    },
+    activationToken: {
+      type: String,
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+pendingUserSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
+
+module.exports = {
+  User: mongoose.model("User", userSchema),
+  PendingUser: mongoose.model("PendingUser", pendingUserSchema),
+};
