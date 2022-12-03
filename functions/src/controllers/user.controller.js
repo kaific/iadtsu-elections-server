@@ -1,4 +1,4 @@
-const User = require("../models/auth.model");
+const { User, PendingUser } = require("../models/auth.model");
 const expressJwt = require("express-jwt");
 
 exports.readController = (req, res) => {
@@ -12,6 +12,38 @@ exports.readController = (req, res) => {
     user.hashed_password = undefined;
     user.salt = undefined;
     res.json(user);
+  });
+};
+
+exports.readAllController = (req, res) => {
+  User.find(
+    {},
+    "_id role first_name _last_name pref_first_name student_number createdAt updatedAt",
+    (err, users) => {
+      if (err) {
+        console.log(err);
+        return res.status(400).json({
+          success: false,
+          message: err,
+        });
+      }
+
+      return res.json(users);
+    }
+  );
+};
+
+// Get accounts currently pending activation
+exports.readPendingController = (req, res) => {
+  PendingUser.find((err, pendingUsers) => {
+    if (err) {
+      return res.status(400).json({
+        success: false,
+        message: "No pending users found.",
+      });
+    }
+
+    return res.json(pendingUsers);
   });
 };
 
