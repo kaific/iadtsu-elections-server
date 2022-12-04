@@ -39,23 +39,25 @@ async function sendMail(mailOptions, user) {
 
     const result = await transport.sendMail(mailOptions);
 
-    const pendingUser = new PendingUser({
-      first_name: user.first_name,
-      last_name: user.last_name,
-      student_number: user.student_number,
-      pref_first_name: user.pref_first_name
-        ? user.pref_first_name
-        : user.first_name,
-      activationToken: user.token,
-    });
+    if (user) {
+      const pendingUser = new PendingUser({
+        first_name: user.first_name,
+        last_name: user.last_name,
+        student_number: user.student_number,
+        pref_first_name: user.pref_first_name
+          ? user.pref_first_name
+          : user.first_name,
+        activationToken: user.token,
+      });
 
-    // log recent registration
-    return pendingUser.save((err, pendingUser) => {
-      if (err) {
-        return err;
-      }
-      return result;
-    });
+      // log recent registration
+      return pendingUser.save((err, pendingUser) => {
+        if (err) {
+          return err;
+        }
+        return result;
+      });
+    }
   } catch (error) {
     return error;
   }
@@ -120,7 +122,7 @@ exports.registerController = (req, res) => {
               from: `IADT SU <${process.env.EMAIL_FROM}>`,
               to: `${student_number}@iadt.ie`,
               subject: `IADTSU Elections Account Activation Link`,
-              text: `Hello ${pref_first_name}, Thank you for registering to vote in IADTSU Elections. Go to the following link to complete your registration: ${process.env.CLIENT_URL}/users/activate/${token}. This activation link will expire in 24 hours. Please fill out the registration form again if you miss this timeframe. Do not respond to this email if you require support. For all technical queries, email help.iadtsu@gmail.com. If you did not register for an account, please ignore this email.`,
+              text: `Hello ${pref_first_name}, Thank you for registering to vote in IADTSU Elections. Go to the following link to complete your registration: (${process.env.CLIENT_URL}/users/activate/${token}). This activation link will expire in 24 hours. Please fill out the registration form again if you miss this timeframe. Do not respond to this email if you require support. For all technical queries, email help.iadtsu@gmail.com. If you did not register for an account, please ignore this email.`,
               html: `<html>
                 <body>
                 <p>Hello ${pref_first_name},</p>
@@ -131,7 +133,7 @@ exports.registerController = (req, res) => {
                 <p>This activation link will expire in 24h. Please fill out the registration form again if you miss this timeframe.</p>
                 <p>Do not respond to this email if you require support. For all technical queries, email help.iadtsu@gmail.com.</p>
                 <p>This email contains sensitive information. If you did not register for an account, please ignore this email.</p>
-                <p>${process.env.CLIENT_URL}</p>
+                <p>IADTSU Elections - ${process.env.CLIENT_URL}</p>
                 </body>
                 </html>`,
             };
@@ -144,7 +146,7 @@ exports.registerController = (req, res) => {
               token,
             })
               .then((result) => {
-                console.log("Email sent...", result);
+                // console.log("Email sent...", result);
                 return res.json({
                   success: true,
                   message: `Email has been sent to ${student_number}@iadt.ie`,
@@ -295,36 +297,6 @@ exports.loginController = (req, res) => {
   }
 };
 
-// exports.deleteController = (req, res) => {
-//   User.findOneAndDelete({ _id: req.params.id });
-// };
-
-exports.requireSignin = expressJwt({
-  secret: process.env.JWT_SECRET, // req.user._id
-  algorithms: ["HS256"],
-});
-
-exports.adminMiddleware = (req, res, next) => {
-  User.findById({
-    _id: req.user._id,
-  }).exec((err, user) => {
-    if (err || !user) {
-      return res.status(400).json({
-        error: "User not found",
-      });
-    }
-
-    if (user.role !== "admin") {
-      return res.status(401).json({
-        error: "Admin resource. Access denied.",
-      });
-    }
-
-    req.profile = user;
-    next();
-  });
-};
-
 // Forgot Password Controller
 exports.forgotController = (req, res) => {
   const { student_number, first_name } = req.body;
@@ -339,7 +311,7 @@ exports.forgotController = (req, res) => {
     });
   } else {
     // Find if user exists
-    User.findOne({ student_number }, (err, user) => {
+    User.findOne({ student_number }, async (err, user) => {
       if (err || !user) {
         return res.status(400).json({
           success: false,
@@ -348,8 +320,8 @@ exports.forgotController = (req, res) => {
       }
 
       // If exists
-      // Generate token for user, valid for only 10min
-      const token = jwt.sign(
+      // Generate token for user, valid for 24h
+      const token = await jwt.sign(
         {
           _id: user._id,
         },
@@ -357,43 +329,32 @@ exports.forgotController = (req, res) => {
         { expiresIn: "1440m" }
       );
 
-      // Send email with token
-      // const emailData = {
-      //   from: process.env.EMAIL_FROM,
-      //   to: `${student_number}@iadt.ie`,
-      //   subject: "Account Password Reset Link",
-      //   text: `Go to the following link to reset the password for your account: ${process.env.CLIENT_URL}/users/password/reset/${token}`,
-      //   html: `
-      //   <h1>Go to the following link to reset the password for your account:</h1>
-      //   <p>${process.env.CLIENT_URL}/users/password/reset/${token}</p>
-      //   <hr/>
-      //   <p>This email contains sensitive information.</p>
-      //   <p>${process.env.CLIENT_URL}</p>
-      //   `,
-      // };
+      console.log(user);
+      const { pref_first_name, student_number } = user;
 
       const mailOptions = {
         from: `IADT SU <${process.env.EMAIL_FROM}`,
         to: `${student_number}@iadt.ie`,
         subject: `IADTSU Elections Account Password Reset`,
-        text: `Hello, You have requested a password reset for IADTSU Elections. Go to the following link to complete your request: ${process.env.CLIENT_URL}/users/password/reset/${token}. This link will expire in 10 minutes. Please fill out the forgot password form again if you miss this timeframe.`,
+        text: `Hello ${pref_first_name}, You have requested a password reset for IADTSU Elections. Go to the following link to complete your request: (${process.env.CLIENT_URL}/users/password/reset/${token}). This link will expire in 24 hours. Please fill out the forgot password form again if you miss this timeframe. Do not respond to this email if you require support. For all technical queries, email help.iadtsu@gmail.com. If you did not request a password reset, please ignore this email.`,
         html: `
         <html>
         <body>
-        <p>Hello ${first_name},</p>
+        <p>Hello ${pref_first_name},</p>
         <p>You have requested a password reset for IADTSU Elections. Go to the following link to complete your request:</p>
         <hr/>
-        <p><a href="${process.env.CLIENT_URL}/password/reset/${token}">Reset your password</a></p>
+        <p>${process.env.CLIENT_URL}/users/password/reset/${token}</p>
         <hr/>
         <p>This link will expire in 24h. Please fill out the forgot password form again if you miss this timeframe.</p>
+        <p>Do not respond to this email if you require support. For all technical queries, email help.iadtsu@gmail.com.</p>
         <p>This email contains sensitive information.</p>
-        <p><a href="${process.env.CLIENT_URL}">IADTSU Elections</a></p>
+        <p>IADTSU Elections (${process.env.CLIENT_URL})</p>
         </body>
         </html>
           `,
       };
 
-      user.updateOne(
+      await user.updateOne(
         {
           resetPasswordLink: token,
         },
@@ -419,18 +380,6 @@ exports.forgotController = (req, res) => {
                   .status(400)
                   .json({ success: false, error: error.message });
               });
-            // transporter.sendMail(emailData, function (err, data) {
-            //   if (err) {
-            //     return res
-            //       .status(400)
-            //       .json({ success: false, error: errorHandler(err) });
-            //   } else {
-            //     return res.json({
-            //       success: true,
-            //       message: `Email has been sent to ${student_number}@iadt.ie`,
-            //     });
-            //   }
-            // });
           }
         }
       );
@@ -495,4 +444,34 @@ exports.resetController = (req, res) => {
       );
     }
   }
+};
+
+// exports.deleteController = (req, res) => {
+//   User.findOneAndDelete({ _id: req.params.id });
+// };
+
+exports.requireSignin = expressJwt({
+  secret: process.env.JWT_SECRET, // req.user._id
+  algorithms: ["HS256"],
+});
+
+exports.adminMiddleware = (req, res, next) => {
+  User.findById({
+    _id: req.user._id,
+  }).exec((err, user) => {
+    if (err || !user) {
+      return res.status(400).json({
+        error: "User not found",
+      });
+    }
+
+    if (user.role !== "admin") {
+      return res.status(401).json({
+        error: "Admin resource. Access denied.",
+      });
+    }
+
+    req.profile = user;
+    next();
+  });
 };

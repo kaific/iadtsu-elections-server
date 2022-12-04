@@ -64,8 +64,11 @@ exports.validNominationPeriod = [
   check(
     "startDate",
     "A nomination period must have a valid start date."
-  ).isDate(),
-  check("endDate", "A nomination period must have a valid end date.").isDate(),
+  ).notEmpty(),
+  check(
+    "endDate",
+    "A nomination period must have a valid end date."
+  ).notEmpty(),
   check("byElection", "By-Election boolean required.").isBoolean(),
 ];
 

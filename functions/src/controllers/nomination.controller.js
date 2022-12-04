@@ -107,9 +107,9 @@ exports.updateNominationPeriodController = (req, res) => {
 
 // Nominee Enter Controller
 exports.enterController = (req, res) => {
-  const { role, token } = req.body;
-  const year = 2021;
-  const byElection = false;
+  const { role, nominationPeriod, token } = req.body;
+  const year = 2022;
+  const byElection = true;
   const errors = validationResult(req);
 
   // Validation for req.body
@@ -126,6 +126,7 @@ exports.enterController = (req, res) => {
       let newNominee = new Nominee({
         user: user._id,
         role,
+        nominationPeriod,
         year,
         byElection,
       });
