@@ -20,13 +20,13 @@ In lieu of a suitable, internal alternative, time constraints and a limited budg
 [Node.js](https://nodejs.org) v16 or higher is required to run the server.
 
 To run locally:
-  1. Start from the `./functions` directory.
-  2. Create `./src/config/config.env` using the provided template file in the same directory.
-  3. Edit `./src/index.js` by uncommenting lines 62-64, and commenting out line 66, like so:
+  1. Start from the `/functions` directory.
+  2. Create `/src/config/config.env` using the provided template file in the same directory.
+  3. Edit `/src/index.js` by uncommenting lines 62-64, and commenting out line 66, like so:
      
-     <img src="https://github.com/kaific/iadtsu-elections-server/assets/32389531/72c33789-f797-419f-9552-b2ec2cb63640" width="50%"/>
+     <img src="https://github.com/kaific/iadtsu-elections-server/assets/32389531/3667a454-4c3f-4b42-a316-945110e27d0f" width="50%"/>
      
-  4. Using a chosen CLI, run the following commands in succession, from within the `./functions/` directory:
+  5. Using a chosen CLI, run the following commands in succession, from within the `./functions/` directory:
      ```console
      npm install
      ```
